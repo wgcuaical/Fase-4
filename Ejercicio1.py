@@ -63,6 +63,69 @@ if not logger.handlers:
     manejador.setFormatter(formato)
     logger.addHandler(manejador)
 
+
+# Definir una base común para las entidades del sistema.
+class Entidad(ABC):
+    # Asignar un identificador único al crear cada entidad.
+    def __init__(self):
+        self._identificador = str(uuid.uuid4())
+
+    # Permitir consultar el identificador mediante una propiedad.
+    @property
+    def identificador(self):
+        return self._identificador
+
+    # Exigir que las clases hijas definan cómo describirse.
+    @abstractmethod
+    def describir(self):
+        pass
+
+# Representar a un cliente del sistema.
+class Cliente(Entidad):
+    # Validar y guardar los datos iniciales del cliente.
+    def __init__(self, nombre, correo):
+        super().__init__()
+
+        # Comprobar que el nombre sea texto y tenga contenido.
+        if not isinstance(nombre, str) or not nombre.strip():
+            raise DatosInvalidosError(
+                "El nombre del cliente no puede estar vacío y debe ser texto."
+            )
+
+        # Comprobar que el correo sea texto.
+        if not isinstance(correo, str):
+            raise DatosInvalidosError(
+                "El correo del cliente debe ser texto."
+            )
+
+        # Quitar espacios al principio y al final del correo.
+        correo = correo.strip()
+
+        # Comprobar una estructura básica de correo electrónico.
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", correo):
+            raise DatosInvalidosError(
+                "El correo electrónico no tiene un formato válido."
+            )
+
+        # Guardar los datos como atributos de uso interno.
+        self._nombre = nombre.strip()
+        self._correo = correo
+
+    # Permitir consultar el nombre.
+    @property
+    def nombre(self):
+        return self._nombre
+
+    # Permitir consultar el correo.
+    @property
+    def correo(self):
+        return self._correo
+
+    # Implementar la descripción exigida por Entidad.
+    def describir(self):
+        return f"Cliente: {self.nombre} | Correo: {self.correo}"
+    
+
 # Ejecutar esta prueba solo cuando se inicia este archivo directamente.
 if __name__ == "__main__":
     logger.info("Inicio de la prueba de integración.")
