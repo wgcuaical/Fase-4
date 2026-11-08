@@ -170,6 +170,75 @@ class Servicio(Entidad):
     def disponible(self):
         return self._disponible
 
+
+    # Validar los valores utilizados para calcular el costo.
+    def _validar_datos_costo(self, duracion, impuesto, descuento):
+        # Comprobar que los tres valores sean números finitos.
+        datos = [
+            ("La duración", duracion),
+            ("El impuesto", impuesto),
+            ("El descuento", descuento)
+        ]
+
+        for nombre, valor in datos:
+            if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+                raise DatosInvalidosError(
+                    f"{nombre} debe ser un número."
+                )
+
+            if not float("-inf") < valor < float("inf"):
+                raise DatosInvalidosError(
+                    f"{nombre} debe ser un número finito."
+                )
+
+        # Exigir una duración mayor que cero.
+        if duracion <= 0:
+            raise DatosInvalidosError(
+                "La duración debe ser mayor que cero."
+            )
+
+        # Aceptar porcentajes entre cero y cien.
+        if not 0 <= impuesto <= 100:
+            raise DatosInvalidosError(
+                "El impuesto debe estar entre 0 y 100."
+            )
+
+        if not 0 <= descuento <= 100:
+            raise DatosInvalidosError(
+                "El descuento debe estar entre 0 y 100."
+            )
+
+    # Calcular el costo aplicando primero el descuento y luego el impuesto.
+    def _calcular_costo_base(self, duracion, impuesto=0, descuento=0):
+        # Comprobar los datos antes de realizar las operaciones.
+        self._validar_datos_costo(duracion, impuesto, descuento)
+
+        try:
+            # Multiplicar la tarifa por la duración en horas.
+            subtotal = self.tarifa * duracion
+
+            # Aplicar el descuento al subtotal.
+            con_descuento = subtotal * (1 - descuento / 100)
+
+            # Aplicar el impuesto al valor con descuento.
+            total = con_descuento * (1 + impuesto / 100)
+
+        except OverflowError as error_original:
+            # Conservar la causa si los valores exceden el cálculo permitido.
+            raise DatosInvalidosError(
+                "Los valores son demasiado grandes para calcular el costo."
+            ) from error_original
+
+        # Rechazar resultados infinitos, indefinidos o negativos.
+        if not 0 <= total < float("inf"):
+            raise DatosInvalidosError(
+                "El cálculo produjo un costo fuera del rango permitido."
+            )
+
+        # Devolver el costo con dos decimales.
+        return round(total, 2)
+
+    
     # Exigir que cada servicio valide sus parámetros específicos.
     @abstractmethod
     def validar_parametros(self):
