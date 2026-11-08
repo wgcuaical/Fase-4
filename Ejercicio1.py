@@ -126,6 +126,61 @@ class Cliente(Entidad):
         return f"Cliente: {self.nombre} | Correo: {self.correo}"
     
 
+# Definir las características comunes de los servicios.
+class Servicio(Entidad):
+    # Validar y guardar los datos iniciales del servicio.
+    def __init__(self, nombre, tarifa):
+        super().__init__()
+
+        # Exigir un nombre de tipo texto que no esté vacío.
+        if not isinstance(nombre, str) or not nombre.strip():
+            raise DatosInvalidosError(
+                "El nombre del servicio debe ser texto y no estar vacío."
+            )
+
+        # Aceptar números, pero rechazar valores booleanos.
+        if isinstance(tarifa, bool) or not isinstance(tarifa, (int, float)):
+            raise DatosInvalidosError(
+                "La tarifa debe ser un número."
+            )
+
+        # Exigir una tarifa positiva y finita.
+        if not 0 < tarifa < float("inf"):
+            raise DatosInvalidosError(
+                "La tarifa debe ser positiva y finita."
+            )
+
+        # Guardar los datos después de validarlos.
+        self._nombre = nombre.strip()
+        self._tarifa = tarifa
+        self._disponible = True
+
+    # Permitir consultar el nombre del servicio.
+    @property
+    def nombre(self):
+        return self._nombre
+
+    # Permitir consultar la tarifa del servicio.
+    @property
+    def tarifa(self):
+        return self._tarifa
+
+    # Permitir consultar si el servicio está disponible.
+    @property
+    def disponible(self):
+        return self._disponible
+
+    # Exigir que cada servicio valide sus parámetros específicos.
+    @abstractmethod
+    def validar_parametros(self):
+        pass
+
+    # Exigir que cada servicio implemente su cálculo de costos.
+    @abstractmethod
+    def calcular_costo(self, duracion, impuesto=0, descuento=0):
+        pass
+
+
 # Ejecutar esta prueba solo cuando se inicia este archivo directamente.
 if __name__ == "__main__":
     logger.info("Inicio de la prueba de integración.")
