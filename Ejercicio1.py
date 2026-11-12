@@ -170,6 +170,18 @@ class Servicio(Entidad):
     def disponible(self):
         return self._disponible
 
+    # Ocupar el servicio solamente si está disponible.
+    def ocupar(self):
+        if not self._disponible:
+            raise ServicioNoDisponibleError(
+                f"El servicio '{self.nombre}' no está disponible."
+            )
+
+        self._disponible = False
+
+    # Dejar el servicio disponible nuevamente.
+    def liberar(self):
+        self._disponible = True
 
     # Validar los valores utilizados para calcular el costo.
     def _validar_datos_costo(self, duracion, impuesto, descuento):
@@ -386,26 +398,77 @@ class Reserva(Entidad):
     def costo_total(self) -> float:
         return self._costo_total
 
-    def procesar_confirmacion(self, impuesto: float = 19, descuento: float = 0) -> float:
-        try:
-            self._costo_total = self.servicio.calcular_costo(self.duracion_horas, impuesto, descuento)
-            self._estado = EstadoReserva.CONFIRMADA
-            logger.info(
-                "Reserva %s CONFIRMADA para cliente '%s' | Servicio: '%s' | Costo: $%s",
-                self.identificador, self.cliente.nombre, self.servicio.nombre, self.costo_total
+    # Confirmar una reserva pendiente y ocupar su servicio.
+    def procesar_confirmacion(self, impuesto=19, descuento=0):
+        # Evitar confirmar reservas canceladas o ya confirmadas.
+        if self.estado != EstadoReserva.PENDIENTE:
+            logger.warning(
+                "Confirmación rechazada para reserva %s. Estado: %s",
+                self.identificador, self.estado.value
             )
-            return self.costo_total
-        except Exception as error_origen:
-            self._estado = EstadoReserva.CANCELADA
-            logger.error("Error al procesar la reserva %s: %s", self.identificador, error_origen)
-            raise OperacionReservaError(f"Fallo en procesamiento de reserva: {error_origen}") from error_origen
+            raise OperacionReservaError(
+                "Solo se pueden confirmar reservas pendientes."
+            )
 
+        try:
+            # Comprobar la disponibilidad al momento de confirmar.
+            if not self.servicio.disponible:
+                raise ServicioNoDisponibleError(
+                    f"El servicio '{self.servicio.nombre}' no está disponible."
+                )
+
+            # Calcular antes de modificar la reserva o el servicio.
+            costo = self.servicio.calcular_costo(
+                self.duracion_horas, impuesto, descuento
+            )
+
+            # Ocupar el servicio después de calcular correctamente.
+            self.servicio.ocupar()
+
+        except Exception as error_origen:
+            # Registrar el fallo y conservar su causa original.
+            logger.exception(
+                "Error al confirmar la reserva %s",
+                self.identificador
+            )
+            raise OperacionReservaError(
+                f"No se pudo confirmar la reserva: {error_origen}"
+            ) from error_origen
+
+        # Guardar el resultado cuando la operación fue exitosa.
+        self._costo_total = costo
+        self._estado = EstadoReserva.CONFIRMADA
+
+        logger.info(
+            "Reserva %s CONFIRMADA | Servicio: %s | Costo: %s",
+            self.identificador, self.servicio.nombre, self.costo_total
+        )
+
+        return self.costo_total
+    
+    # Cancelar la reserva y liberar el servicio si estaba confirmado.
     def cancelar(self, motivo: str):
-        if self._estado == EstadoReserva.CANCELADA:
-            raise OperacionReservaError(f"La reserva {self.identificador} ya se encuentra cancelada.")
-        
+        # Evitar cancelar dos veces la misma reserva.
+        if self.estado == EstadoReserva.CANCELADA:
+            logger.warning(
+                "Cancelación repetida de la reserva %s",
+                self.identificador
+            )
+            raise OperacionReservaError(
+                "La reserva ya se encuentra cancelada."
+            )
+
+        # Solo una reserva confirmada había ocupado el servicio.
+        if self.estado == EstadoReserva.CONFIRMADA:
+            self.servicio.liberar()
+
+        # Registrar la cancelación.
         self._estado = EstadoReserva.CANCELADA
-        logger.info("Reserva %s CANCELADA. Motivo: %s", self.identificador, motivo)
+        logger.info(
+            "Reserva %s CANCELADA. Motivo: %s",
+            self.identificador, motivo
+        )
+
 
     def describir(self) -> str:
         return (f"Reserva [{self.identificador[:8]}] | Cliente: {self.cliente.nombre} | "
@@ -487,7 +550,7 @@ def ejecutar_simulacion():
     # OP 7: Intento de Reserva con duración 0 (Inválida)
     print("\n[OP 7] Intento de Reserva con duración 0 horas...")
     try:
-        r2 = Reserva(clientes[0], servicios[0], duracion_horas=0)
+        r2 = Reserva(clientes[0], servicios[1], duracion_horas=0)
     except ErrorSoftwareFJ as e:
         logger.warning("OP 7 Controlada: %s", e)
         print(" -> Error controlado:", e)
