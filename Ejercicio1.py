@@ -285,10 +285,28 @@ class ReservaSala(Servicio):
             raise DatosInvalidosError("La capacidad de personas debe ser mayor que cero.")
 
     def calcular_costo(self, duracion: float, impuesto: float = 0, descuento: float = 0) -> float:
-        descuento_aplicado = descuento
-        if duracion > 5:
-            descuento_aplicado += 5.0
-        return self._calcular_costo_base(duracion, impuesto, descuento_aplicado)
+
+        # Validar los parámetros antes de calcular.
+        self._validar_datos_costo(duracion, impuesto, descuento)
+
+        # Aplicar descuento adicional del 5 % cuando
+        # la reserva supere las 5 horas.
+        descuento_tiempo = 5.0 if duracion > 5 else 0.0
+
+        # Sumar el descuento adicional al descuento solicitado.
+        descuento_total = descuento + descuento_tiempo
+
+        # Evitar que los descuentos superen el 100 %.
+        if descuento_total > 100:
+            raise DatosInvalidosError(
+            "El descuento total no puede superar el 100 %."
+            )
+
+        return self._calcular_costo_base(
+            duracion,
+            impuesto,
+            descuento_total
+        )
 
     def describir(self) -> str:
         return f"Reserva de Sala '{self.nombre}' | Capacidad: {self.capacidad_personas} personas | Tarifa/h: ${self.tarifa}"
@@ -309,12 +327,29 @@ class AlquilerEquipo(Servicio):
         return self._incluye_seguro
 
     def validar_parametros(self):
-        pass
+
+    # Verificar que el seguro sea un valor booleano.
+     if not isinstance(self._incluye_seguro, bool):
+        raise DatosInvalidosError(
+            "El seguro debe ser verdadero o falso."
+        )
 
     def calcular_costo(self, duracion: float, impuesto: float = 0, descuento: float = 0) -> float:
-        costo_base = self._calcular_costo_base(duracion, impuesto, descuento)
+
+        # Calcular el costo del alquiler con sus descuentos e impuestos.
+        costo_base = self._calcular_costo_base(
+            duracion,
+            impuesto,
+            descuento
+    )
+
+        # Aplicar recargo de seguro cuando corresponda.
         recargo_seguro = 15000.0 if self._incluye_seguro else 0.0
-        return round(costo_base + recargo_seguro, 2)
+
+        # Sumar el seguro al costo calculado.
+        total = costo_base + recargo_seguro
+
+        return round(total, 2)
 
     def describir(self) -> str:
         seg_str = "Con seguro contra daños" if self.incluye_seguro else "Sin seguro"
@@ -338,9 +373,27 @@ class AsesoriaEspecializada(Servicio):
             raise DatosInvalidosError("El nombre del especialista debe ser texto y no estar vacío.")
 
     def calcular_costo(self, duracion: float, impuesto: float = 0, descuento: float = 0) -> float:
+
+        # Validar primero los datos numéricos.
+        self._validar_datos_costo(
+        duracion,
+        impuesto,
+        descuento
+    )
+
+        # Establecer la duración mínima de contratación.
         if duracion < 1.0:
-            raise DatosInvalidosError("Las asesorías especializadas requieren mínimo 1 hora de contratación.")
-        return self._calcular_costo_base(duracion, impuesto, descuento)
+            raise DatosInvalidosError(
+                "Las asesorías especializadas requieren "
+                "mínimo 1 hora de contratación."
+        )
+
+        # Calcular el costo cuando se cumplen las condiciones.
+        return self._calcular_costo_base(
+            duracion,
+            impuesto,
+            descuento
+    )
 
     def describir(self) -> str:
         return f"Asesoría Especializada en '{self.nombre}' por {self.especialista} | Tarifa/h: ${self.tarifa}"
@@ -583,11 +636,213 @@ def ejecutar_simulacion():
         logger.warning("OP 10 Controlada: %s", e)
         print(" -> Error controlado:", e)
 
+    # ==========================================
+    # OP 11: PRUEBAS DE DESCUENTO EN RESERVA DE SALAS
+    # ==========================================
+
+    print("\n[OP 11] Pruebas de descuento por tiempo en salas...")
+
+    try:
+        sala_prueba = ReservaSala(
+            "Sala de Pruebas",
+            tarifa=45000.0,
+            capacidad_personas=15
+        )
+
+        # Prueba 1: Reserva de exactamente 5 horas.
+        costo_5_horas = sala_prueba.calcular_costo(
+            duracion=5,
+            impuesto=0,
+            descuento=0
+        )
+
+        # Prueba 2: Reserva superior a 5 horas.
+        costo_6_horas = sala_prueba.calcular_costo(
+            duracion=6,
+            impuesto=0,
+            descuento=0
+        )
+
+        esperado_5 = 225000.00
+        esperado_6 = 256500.00
+
+        print(" -> Reserva de 5 horas:")
+        print(f"    Costo calculado: ${costo_5_horas:,.2f}")
+        print(f"    Costo esperado:  ${esperado_5:,.2f}")
+
+        print(" -> Reserva de 6 horas:")
+        print(f"    Costo calculado: ${costo_6_horas:,.2f}")
+        print(f"    Costo esperado:  ${esperado_6:,.2f}")
+
+        assert costo_5_horas == esperado_5
+        assert costo_6_horas == esperado_6
+
+        print(" -> OK: Descuento por tiempo aplicado correctamente.")
+
+        logger.info(
+            "OP 11 Exitosa: Prueba de descuento en salas. "
+            "5 horas: %s | 6 horas: %s",
+            costo_5_horas,
+            costo_6_horas
+        )
+
+    except Exception as e:
+        logger.exception("OP 11 Error en pruebas de salas")
+        print(" -> Error controlado:", e)
+
+
+    # ==========================================
+    # OP 12: PRUEBAS DE ALQUILER CON Y SIN SEGURO
+    # ==========================================
+
+    print("\n[OP 12] Pruebas de alquiler de equipos con y sin seguro...")
+
+    try:
+        equipo_con_seguro = AlquilerEquipo(
+            "Computador Portátil",
+            tarifa=35000.0,
+            incluye_seguro=True
+        )
+
+        equipo_sin_seguro = AlquilerEquipo(
+            "Computador Portátil",
+            tarifa=35000.0,
+            incluye_seguro=False
+        )
+
+        # Calcular el alquiler durante 6 horas.
+        costo_con_seguro = equipo_con_seguro.calcular_costo(
+            duracion=6,
+            impuesto=19,
+            descuento=0
+        )
+
+        costo_sin_seguro = equipo_sin_seguro.calcular_costo(
+            duracion=6,
+            impuesto=19,
+            descuento=0
+        )
+
+        esperado_con_seguro = 264900.00
+        esperado_sin_seguro = 249900.00
+
+        print(" -> Alquiler con seguro:")
+        print(f"    Costo calculado: ${costo_con_seguro:,.2f}")
+        print(f"    Costo esperado:  ${esperado_con_seguro:,.2f}")
+
+        print(" -> Alquiler sin seguro:")
+        print(f"    Costo calculado: ${costo_sin_seguro:,.2f}")
+        print(f"    Costo esperado:  ${esperado_sin_seguro:,.2f}")
+
+        assert costo_con_seguro == esperado_con_seguro
+        assert costo_sin_seguro == esperado_sin_seguro
+
+        # Verificar que la diferencia corresponda al seguro.
+        diferencia = costo_con_seguro - costo_sin_seguro
+
+        assert diferencia == 15000.00
+
+        print(f" -> Diferencia por seguro: ${diferencia:,.2f}")
+        print(" -> OK: Recargo del seguro aplicado correctamente.")
+
+        logger.info(
+            "OP 12 Exitosa: Alquiler con seguro: %s | "
+            "Sin seguro: %s | Diferencia: %s",
+            costo_con_seguro,
+            costo_sin_seguro,
+            diferencia
+        )
+
+    except Exception as e:
+        logger.exception("OP 12 Error en pruebas de alquiler")
+        print(" -> Error controlado:", e)
+
+
+    # ==========================================
+    # OP 13: PRUEBAS DE DURACIÓN MÍNIMA DE ASESORÍAS
+    # ==========================================
+
+    print("\n[OP 13] Pruebas de duración mínima de asesorías...")
+
+    try:
+        asesoria_prueba = AsesoriaEspecializada(
+            "Consultoría en Seguridad Informática",
+            tarifa=80000.0,
+            especialista="Ing. Juan Arango"
+        )
+
+        # Prueba 1: Duración inferior al mínimo permitido.
+        try:
+            asesoria_prueba.calcular_costo(
+                duracion=0.5,
+                impuesto=0,
+                descuento=0
+            )
+
+            print(" -> ERROR: Se aceptó una asesoría de 0.5 horas.")
+
+        except DatosInvalidosError as e:
+            print(" -> OK: Asesoría de 0.5 horas rechazada.")
+            print("    Motivo:", e)
+
+            logger.info(
+                "OP 13: Prueba de rechazo de asesoría inferior a una hora."
+            )
+
+        # Prueba 2: Duración mínima de una hora.
+        costo_1_hora = asesoria_prueba.calcular_costo(
+            duracion=1,
+            impuesto=0,
+            descuento=0
+        )
+
+        # Prueba 3: Duración de dos horas.
+        costo_2_horas = asesoria_prueba.calcular_costo(
+            duracion=2,
+            impuesto=0,
+            descuento=0
+        )
+
+        assert costo_1_hora == 80000.00
+        assert costo_2_horas == 160000.00
+
+        print(" -> Asesoría de 1 hora aceptada:")
+        print(f"    Costo: ${costo_1_hora:,.2f}")
+
+        print(" -> Asesoría de 2 horas aceptada:")
+        print(f"    Costo: ${costo_2_horas:,.2f}")
+
+        print(" -> OK: Duración mínima de asesorías validada.")
+
+        logger.info(
+            "OP 13 Exitosa: Asesoría de 1 hora: %s | "
+            "Asesoría de 2 horas: %s",
+            costo_1_hora,
+            costo_2_horas
+        )
+
+    except Exception as e:
+        logger.exception("OP 13 Error en pruebas de asesorías")
+        print(" -> Error controlado:", e)
+
+      # Resumen Final  
     print("\n==============================================================")
-    print("  SIMULACIÓN COMPLETADA CON ÉXITO. APLICACIÓN ESTABLE.        ")
-    print("  Verifique el archivo 'software_fj.log' para revisar el log. ")
+    print("       SOFTWARE FJ - RESULTADOS DE SIMULACIÓN                  ")
+    print("==============================================================")
+    print("  Operaciones iniciales: 10")
+    print("  Pruebas adicionales:    3")
+    print("  Total de operaciones:  13")
+    print("--------------------------------------------------------------")
+    print("  Pruebas de descuento en salas:       REALIZADAS")
+    print("  Pruebas de alquiler con seguro:      REALIZADAS")
+    print("  Pruebas de alquiler sin seguro:      REALIZADAS")
+    print("  Pruebas de duración de asesorías:    REALIZADAS")
+    print("--------------------------------------------------------------")
+    print("  Aplicación finalizada.")
+    print("  Consulte el archivo software_fj.log")
     print("==============================================================\n")
-    logger.info("=== FIN DE LA SIMULACIÓN DE OPERACIONES ===")
+
+    logger.info("=== FIN DE LA SIMULACIÓN DE 13 OPERACIONES ===")
 
 
 if __name__ == "__main__":
