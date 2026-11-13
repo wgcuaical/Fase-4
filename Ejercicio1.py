@@ -422,9 +422,20 @@ class Reserva(Entidad):
         if not servicio.disponible:
             raise ServicioNoDisponibleError(f"El servicio '{servicio.nombre}' no está disponible.")
         
-        if isinstance(duracion_horas, bool) or not isinstance(duracion_horas, (int, float)) or duracion_horas <= 0:
-            raise DatosInvalidosError("La duración de la reserva debe ser un número mayor a cero.")
+        # Comprobar que la duración sea numérica, sin aceptar booleanos.
+        if isinstance(duracion_horas, bool) or not isinstance(
+            duracion_horas, (int, float)
+        ):
+            raise DatosInvalidosError(
+                "La duración de la reserva debe ser un número."
+            )
 
+        # Rechazar cero, negativos, infinito y valores indefinidos.
+        if not 0 < duracion_horas < float("inf"):
+            raise DatosInvalidosError(
+                "La duración de la reserva debe ser positiva y finita."
+            )
+        
         self._cliente = cliente
         self._servicio = servicio
         self._duracion_horas = duracion_horas
