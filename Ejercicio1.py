@@ -540,28 +540,42 @@ class Reserva(Entidad):
 
 
 # ==========================================
-# SIMULACIÓN DE 10 OPERACIONES COMPLETAS
+# SIMULACIÓN DE 14 OPERACIONES COMPLETAS
 # ==========================================
 
 def ejecutar_simulacion():
     print("\n==============================================================")
     print("   SOFTWARE FJ - SISTEMA INTEGRAL (SIMULACIÓN FASE 4)        ")
     print("==============================================================\n")
-    logger.info("=== INICIO DE LA SIMULACIÓN DE 10 OPERACIONES ===")
+    logger.info("=== INICIO DE LA SIMULACIÓN DE 14 OPERACIONES ===")
 
     clientes = []
     servicios = []
     reservas = []
+    fallos = 0
 
-    # OP 1: Registro válido de cliente
+    # OP 1: Registro válido de cliente.
     print("[OP 1] Registro de Cliente válido...")
+
     try:
+        # Crear el cliente y agregarlo a la lista.
         c1 = Cliente("José Julian Moreno", "jjmorenoi@unadvirtual.edu.co")
         clientes.append(c1)
+
+    except ErrorSoftwareFJ as e:
+        fallos += 1
+        # Registrar el error y mostrarlo sin detener la simulación.
+        logger.exception("OP 1: error al registrar el cliente")
+        print(" -> Error:", e)
+
+    else:
+        # Mostrar el resultado únicamente si no ocurrió un error.
         logger.info("OP 1 Exitosa: %s", c1.describir())
         print(" -> OK:", c1.describir())
-    except ErrorSoftwareFJ as e:
-        print(" -> Error:", e)
+
+    finally:
+        # Registrar el cierre del intento, haya ocurrido un error o no.
+        logger.info("OP 1: finalizó el intento de registro del cliente")
 
     # OP 2: Registro inválido de cliente (Correo erróneo)
     print("\n[OP 2] Registro de Cliente inválido (Sin @)...")
@@ -580,6 +594,9 @@ def ejecutar_simulacion():
         logger.info("OP 3 Exitosa: %s", s1.describir())
         print(" -> OK:", s1.describir())
     except ErrorSoftwareFJ as e:
+        fallos += 1
+        # Guardar el error y su detalle en el archivo de registros.
+        logger.exception("OP 3: error al crear el servicio de sala")
         print(" -> Error:", e)
 
     # OP 4: Creación de Servicio inválido (Capacidad negativa)
@@ -599,6 +616,8 @@ def ejecutar_simulacion():
         logger.info("OP 5 Exitosa: %s", s3.describir())
         print(" -> OK:", s3.describir())
     except ErrorSoftwareFJ as e:
+        fallos += 1
+        logger.exception("OP 5: error al crear el servicio de asesoría")
         print(" -> Error:", e)
 
     # OP 6: Reserva exitosa con confirmación
@@ -609,6 +628,8 @@ def ejecutar_simulacion():
         reservas.append(r1)
         print(" -> OK:", r1.describir())
     except ErrorSoftwareFJ as e:
+        fallos += 1
+        logger.exception("OP 6: error al crear o confirmar la reserva")
         print(" -> Error:", e)
 
     # OP 7: Intento de Reserva con duración 0 (Inválida)
@@ -629,6 +650,8 @@ def ejecutar_simulacion():
         reservas.append(r3)
         print(" -> OK:", r3.describir())
     except ErrorSoftwareFJ as e:
+        fallos += 1
+        logger.exception("OP 8: error al crear el alquiler de equipo")
         print(" -> Error:", e)
 
     # OP 9: Cancelación válida de reserva
@@ -637,6 +660,8 @@ def ejecutar_simulacion():
         reservas[0].cancelar("Reprogramación solicitada por el cliente")
         print(" -> OK:", reservas[0].describir())
     except ErrorSoftwareFJ as e:
+        fallos += 1
+        logger.exception("OP 9: error al cancelar la reserva")
         print(" -> Error:", e)
 
     # OP 10: Intento de cancelar una reserva ya cancelada
@@ -698,6 +723,7 @@ def ejecutar_simulacion():
         )
 
     except Exception as e:
+        fallos += 1
         logger.exception("OP 11 Error en pruebas de salas")
         print(" -> Error controlado:", e)
 
@@ -765,6 +791,7 @@ def ejecutar_simulacion():
         )
 
     except Exception as e:
+        fallos += 1
         logger.exception("OP 12 Error en pruebas de alquiler")
         print(" -> Error controlado:", e)
 
@@ -790,7 +817,9 @@ def ejecutar_simulacion():
                 descuento=0
             )
 
-            print(" -> ERROR: Se aceptó una asesoría de 0.5 horas.")
+            raise AssertionError(
+             "Se aceptó una asesoría de 0.5 horas."
+         )
 
         except DatosInvalidosError as e:
             print(" -> OK: Asesoría de 0.5 horas rechazada.")
@@ -833,27 +862,58 @@ def ejecutar_simulacion():
         )
 
     except Exception as e:
+        fallos += 1
         logger.exception("OP 13 Error en pruebas de asesorías")
         print(" -> Error controlado:", e)
+
+    # OP 14: Intentar crear un cliente sin el correo obligatorio.
+    print("\n[OP 14] Creación de cliente sin correo...")
+
+    try:
+        # Omitir el correo intencionalmente para comprobar el error.
+        Cliente("Cliente de prueba")
+
+    except TypeError as e:
+        # Registrar el argumento faltante y continuar la ejecución.
+        logger.warning("OP 14 Controlada: parámetro faltante: %s", e)
+        print(" -> OK: se rechazó la creación del cliente sin correo.")
+
+    else:
+        # Si no ocurre el error esperado, la prueba falla.
+        fallos += 1
+        logger.error("OP 14: se aceptó un cliente sin correo.")
+        print(" -> FALLO: se esperaba un error por el correo faltante.")
+
+    finally:
+        # Registrar siempre que terminó este intento.
+        logger.info("OP 14: finalizó la prueba de parámetro faltante.")
+
 
       # Resumen Final  
     print("\n==============================================================")
     print("       SOFTWARE FJ - RESULTADOS DE SIMULACIÓN                  ")
     print("==============================================================")
     print("  Operaciones iniciales: 10")
-    print("  Pruebas adicionales:    3")
-    print("  Total de operaciones:  13")
+    print("  Pruebas adicionales:    4")
+    print("  Total de operaciones:  14")
     print("--------------------------------------------------------------")
     print("  Pruebas de descuento en salas:       REALIZADAS")
     print("  Pruebas de alquiler con seguro:      REALIZADAS")
     print("  Pruebas de alquiler sin seguro:      REALIZADAS")
     print("  Pruebas de duración de asesorías:    REALIZADAS")
     print("--------------------------------------------------------------")
-    print("  Aplicación finalizada.")
+    print(f" Fallos inesperados detectados: {fallos}")
+
+    if fallos == 0:
+        print(" Las comprobaciones registradas finalizaron sin fallos.")
+    else:
+        print(" Se detectaron fallos. Revise software_fj.log.")
+
+    print(" Aplicación finalizada.")
     print("  Consulte el archivo software_fj.log")
     print("==============================================================\n")
 
-    logger.info("=== FIN DE LA SIMULACIÓN DE 13 OPERACIONES ===")
+    logger.info("=== FIN DE LA SIMULACIÓN DE 14 OPERACIONES ===")
 
 
 if __name__ == "__main__":
